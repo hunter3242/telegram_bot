@@ -152,10 +152,9 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.PHOTO | filters.TEXT, handle_message))
 
-    # Bot start karo
+    # Bot start karo with drop_pending_updates to clear old updates
     print("Bot chal raha hai...")
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)  # Yeh conflict clear karega
 
 if __name__ == "__main__":
     main()
-    
