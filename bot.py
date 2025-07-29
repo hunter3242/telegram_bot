@@ -1,19 +1,23 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 import asyncio
+import os
 
-BOT_TOKEN = "8312166299:AAHufnKmqsgDQ0WfBbXAA4k9GVxDUtcgmLs"  
-ADMIN_ID = 6118937921
+# Bot token and admin ID from environment variables
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "8312166299:AAHufnKmqsgDQ0WfBbXAA4k9GVxDUtcgmLs")
+ADMIN_ID = int(os.environ.get("ADMIN_ID", "6118937921"))
+WELCOME_PHOTO = "https://ibb.co/fYjnXNjD"  # ImgBB URL
 
-# Users ke chat IDs ke liye memory mein set
+# Set to store user IDs
 user_ids = set()
+# Dictionary to map forwarded message ID to user ID
 message_id_to_user_id = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
-    user_ids.add(user_id)  # User ID memory mein save
+    user_ids.add(user_id)  # User ko add karo
 
-    # Welcome message ke liye buttons
+    # Welcome message ke liye buttons (ek line mein ek)
     keyboard = [
         [InlineKeyboardButton("Register now", url="http://lakshmiwin.com/register?campaignId=prize")],
         [InlineKeyboardButton("Join Lakshmiwin now", url="http://lakshmiwin.com/register?campaignId=prize")],
@@ -24,14 +28,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     # Welcome message with photo
-    welcome_photo = "https://ibb.co/fYjnXNjD"  # Apna photo URL daalo
-    welcome_caption = "♻️ WELCOME TO LAKSHMIWIN BOOK ♻️!"
-
-    await update.message.reply_photo(
-        photo=welcome_photo,
-        caption=welcome_caption,
-        reply_markup=reply_markup
-    )
+    try:
+        await update.message.reply_photo(
+            photo=WELCOME_PHOTO,
+            caption="♻️ WELCOME TO LAKSHMIWIN BOOK ♻️!",
+            reply_markup=reply_markup
+        )
+    except Exception as e:
+        await update.message.reply_text(
+            f"Photo load nahi hua: {str(e)}\nCaption: ♻️ WELCOME TO LAKSHMIWIN BOOK ♻️!",
+            reply_markup=reply_markup
+        )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
@@ -68,6 +75,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Admin ka naya message broadcast karo
         if message.photo or message.text:
+            # Broadcast ke liye buttons (ek line mein ek)
             keyboard = [
                 [InlineKeyboardButton("Register now", url="http://lakshmiwin.com/register?campaignId=prize")],
                 [InlineKeyboardButton("Join Lakshmiwin now", url="http://lakshmiwin.com/register?campaignId=prize")],
@@ -78,13 +86,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup = InlineKeyboardMarkup(keyboard)
             caption = message.caption if message.caption else (
                 "Exclusive A To Z Bets Available 🔥\n"
-                "500% Signup Bonus\n"
+                "500%% Signup Bonus\n"
                 "Minimum ID Just 300 Rs\n"
                 "Minimum Bet Just 100 Rs\n"
                 "24*7 Super Fast Service\n"
                 "Biggest Book of India"
             )
             photo = message.photo[-1].file_id if message.photo else None
+
+            sent_count = 0
+            failed_count = 0
+            failed_users = []
 
             for uid in user_ids:
                 try:
@@ -98,13 +110,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     else:
                         await context.bot.send_message(
                             chat_id=uid,
-                            text=caption,
+                            text=message.text if message.text else caption,
                             reply_markup=reply_markup
                         )
-                    await asyncio.sleep(0.05)
+                    sent_count += 1
+                    await asyncio.sleep(0.05)  # Telegram rate limits ke liye
                 except Exception as e:
+                    failed_count += 1
+                    failed_users.append(f"User {uid}: {str(e)}")
                     print(f"Error bhejne mein {uid}: {e}")
-            await update.message.reply_text("Message sabko bhej diya!")
+
+            # Admin ko detailed confirmation bhejo
+            if failed_count == 0:
+                await update.message.reply_text(f"Message {sent_count} users ko bhej diya!")
+            else:
+                await update.message.reply_text(
+                    f"Message {sent_count} users ko bheja, {failed_count} users ko nahi bheja gaya.\nErrors:\n" + "\n".join(failed_users)
+                )
             return
 
     # Non-admin ke messages admin ko forward karo
@@ -123,11 +145,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 print(f"Error forwarding message from {user_id}: {e}")
 
 def main():
+    # Bot initialize karo
     app = Application.builder().token(BOT_TOKEN).build()
+
+    # Handlers add karo
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.PHOTO | filters.TEXT, handle_message))
+
+    # Bot start karo
     print("Bot chal raha hai...")
     app.run_polling()
 
 if __name__ == "__main__":
     main()
+    
